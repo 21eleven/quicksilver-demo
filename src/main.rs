@@ -1,23 +1,73 @@
 use quicksilver::{
-    geom::{Shape, Vector},
+    geom::{Rectangle, Shape, Vector},
     graphics::{Background::Img, Color, Font, FontStyle, Image},
     lifecycle::{run, Asset, Settings, State, Window},
     Future, Result,
 };
 
+use std::collections::HashMap;
+
 struct Game{
     title: Asset<Image>,
     mononoki_font_info: Asset<Image>,
+    map_size: Vector,
+    map: Vec<Tile>,
+    entites: Vec<Entity>,
+    player_id: usize,
+    tileset: Asset<HashMap<char, Image>>,
+    tile_size_px: Vector,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Entity {
+    pos: Vector,
+    glyph: char,
+    color: Color,
+    hp: i32,
+    max_hp: i32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Tile {
+    pos: Vector,
+    glyph: char,
+    color: Color,
 }
 
 impl State for Game {
     fn new() -> Result<Self> {
         let font_mononoki = "mononoki-Regular.ttf";
+        let map_size = Vector::new(20, 15);
+        let map = generate_map(map_size);
+        let mut entites = generate_entites();
+        let player_id = entites.len();
+        entites.push(Entity {
+            pos: Vector::new(5,3),
+            glyph: '@',
+            color: Color::BLUE,
+            hp: 3,
+            max_hp: 5,
+        });
+        let game_glyphs = "#@g.%";
+
+        let tile_size_px = Vector::new(12, 24);
+        let tileset = Asset::new(Font::load(font_mononoki).and_then(move |text| {
+            let tiles = text
+                        .render(game_glyphs, &FontStyle::new(tile_size_px.y, Color::WHITE))
+                        .expect("Could not render the font tileset.");
+            let mut tileset = HashMap::new();
+            for (index, glyph) in game_glyphs.chars().enumerate() {
+                let pos = (index as i32 * tile_size_px.x as i32, 0);
+                let tile = tiles.subimage(Rectangle::new(pos, tile_size_px));
+                tileset.insert(glyph, tile);
+            }
+            Ok(tileset)
+        }));
 
         let title = Asset::new(Font::load(font_mononoki).and_then(|font| {
             font.render(
                 "∑ airseat miles ∆ simulator λ", 
-                &FontStyle::new(72.0, Color::BLACK)
+                &FontStyle::new(42.0, Color::BLACK)
             )
         }));
         let mononoki_font_info = Asset::new(Font::load(font_mononoki).and_then(|font| {
@@ -26,7 +76,16 @@ impl State for Game {
                 &FontStyle::new(20.0, Color::BLACK),
             )
         }));
-        Ok(Self { title, mononoki_font_info })
+        Ok(Self { 
+            title, 
+            mononoki_font_info,
+            map_size,
+            map,
+            entites,
+            player_id,
+            tileset,
+            tile_size_px,
+        })
     }
     fn update(&mut self, window: &mut Window) -> Result<()> {
         Ok(())
@@ -56,8 +115,63 @@ impl State for Game {
 }
 
 fn main() {
+    //std::env::set_var("WINIT_HIDPI_FACTOR", "1.0");
     let settings = Settings {
+        scale: quicksilver::graphics::ImageScaleStrategy::Blur,
         ..Default::default()
     };
     run::<Game>("airseat miles simulator", Vector::new(800,600), settings);
+}
+
+fn generate_map(size: Vector) -> Vec<Tile> {
+    let width = size.x as usize;
+    let height = size.y as usize;
+    let mut map = Vec::with_capacity(width * height);
+    for x in 0..width {
+        for y in 0..height {
+            let mut tile = Tile {
+                pos: Vector::new(x as f32, y as f32),
+                glyph: '.',
+                color: Color::BLACK,
+            };
+            if x == 0 || x == width -1 || y == 0 || y == height -1 {
+                tile.glyph = '#';
+            };
+            map.push(tile);
+        }
+    }
+    map
+}
+
+fn generate_entites() -> Vec<Entity> {
+    vec![
+        Entity{
+            pos: Vector::new(9, 6),
+            glyph: 'g',
+            color: Color::RED,
+            hp: 1,
+            max_hp: 1,
+        },
+        Entity{
+            pos: Vector::new(2, 4),
+            glyph: 'g',
+            color: Color::RED,
+            hp: 1,
+            max_hp: 1,
+        },
+        Entity{
+            pos: Vector::new(7, 5),
+            glyph: '%',
+            color: Color::PURPLE,
+            hp: 0,
+            max_hp: 0,
+        },
+        Entity{
+            pos: Vector::new(9, 6),
+            glyph: '%',
+            color: Color::PURPLE,
+            hp: 0,
+            max_hp: 0,
+        },
+    ]
 }
