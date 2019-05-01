@@ -1,7 +1,8 @@
 use quicksilver::{
     geom::{Rectangle, Shape, Vector},
-    graphics::{Background::Img, Color, Font, FontStyle, Image},
+    graphics::{Background::Img,Background::Col,Background::Blended, Color, Font, FontStyle, Image},
     lifecycle::{run, Asset, Settings, State, Window},
+    input::Key,
     Future, Result,
 };
 
@@ -48,10 +49,12 @@ impl State for Game {
             hp: 3,
             max_hp: 5,
         });
+
+        let font_square = "square.ttf";
         let game_glyphs = "#@g.%";
 
-        let tile_size_px = Vector::new(12, 24);
-        let tileset = Asset::new(Font::load(font_mononoki).and_then(move |text| {
+        let tile_size_px = Vector::new(24, 24);
+        let tileset = Asset::new(Font::load(font_square).and_then(move |text| {
             let tiles = text
                         .render(game_glyphs, &FontStyle::new(tile_size_px.y, Color::WHITE))
                         .expect("Could not render the font tileset.");
@@ -88,6 +91,24 @@ impl State for Game {
         })
     }
     fn update(&mut self, window: &mut Window) -> Result<()> {
+        use quicksilver::input::ButtonState::*;
+
+        let player = &mut self.entites[self.player_id];
+        if window.keyboard()[Key::Left] == Pressed {
+            player.pos.x -= 1.0;
+        }
+        if window.keyboard()[Key::Right] == Pressed {
+            player.pos.x += 1.0;
+        }
+        if window.keyboard()[Key::Up] == Pressed {
+            player.pos.y -= 1.0;
+        }
+        if window.keyboard()[Key::Down] == Pressed {
+            player.pos.y += 1.0;
+        }
+        if window.keyboard()[Key::Escape].is_down() {
+            window.close();
+        }
         Ok(())
     }
     fn draw(&mut self, window: &mut Window) -> Result<()> {
@@ -110,6 +131,53 @@ impl State for Game {
             );
             Ok(())
         })?;
+        let tile_size_px = self.tile_size_px;
+        let offset_px = Vector::new(50, 120);
+        let (tileset, map) = (&mut self.tileset, &self.map);
+        tileset.execute(|tileset| {
+            for tile in map.iter() {
+                if let Some(image) = tileset.get(&tile.glyph) {
+                    let pos_px = tile.pos.times(tile_size_px);
+                    window.draw(
+                        &Rectangle::new(offset_px + pos_px, image.area().size()),
+                        Blended(&image, tile.color),
+                    );
+                }
+            }
+            Ok(())
+        })?;
+
+        let (tileset, entites) = (&mut self.tileset, &self.entites);
+        tileset.execute(|tileset| {
+            for entity in entites.iter() {
+                if let Some(image) = tileset.get(&entity.glyph) {
+                    let pos_px = offset_px + entity.pos.times(tile_size_px);
+                    window.draw(
+                        &Rectangle::new(pos_px, image.area().size()),
+                        Blended(&image, entity.color),
+                    );
+                }
+            }
+            Ok(())
+        })?;
+        let player = &self.entites[self.player_id];
+        let full_health_width_px = 100.0;
+        let current_health_width_px =
+                (player.hp as f32 / player.max_hp as f32) * full_health_width_px;
+        let map_size_px = self.map_size.times(tile_size_px);
+        let health_bar_pos_px = offset_px + Vector::new(map_size_px.x, 0.0);
+
+        window.draw(
+            &Rectangle::new(health_bar_pos_px, (full_health_width_px, tile_size_px.y)),
+            Col(Color::RED.with_alpha(0.5)),
+        );
+        window.draw(
+            &Rectangle::new(health_bar_pos_px, (current_health_width_px, tile_size_px.y)),
+            Col(Color::RED),
+        );
+
+
+
         Ok(())
     }
 }
